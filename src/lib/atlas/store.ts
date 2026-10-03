@@ -2,14 +2,18 @@ import { create } from "zustand";
 import { ESTIMATES, PROPERTIES } from "./data";
 import type { EstimateRecord, LeadStage, LineItem } from "./types";
 
+type MapFocus = { lng: number; lat: number; label: string; zoom: number };
+
 type AtlasState = {
   stages: Record<string, LeadStage>;
   estimates: Record<string, EstimateRecord>;
   selectedStormId: string;
   selectedPropertyId: string | null;
+  mapFocus: MapFocus | null;
   setStage: (propertyId: string, stage: LeadStage) => void;
   selectStorm: (id: string) => void;
   selectProperty: (id: string | null) => void;
+  focusMap: (focus: MapFocus) => void;
   patchLine: (estimateId: string, itemId: string, patch: Partial<LineItem>) => void;
   addLine: (estimateId: string) => void;
   removeLine: (estimateId: string, itemId: string) => void;
@@ -24,10 +28,12 @@ export const useAtlas = create<AtlasState>()((set) => ({
   estimates: estimateSeed,
   selectedStormId: "stx-preston",
   selectedPropertyId: "p-meadow",
+  mapFocus: null,
   setStage: (propertyId, stage) =>
     set((s) => ({ stages: { ...s.stages, [propertyId]: stage } })),
   selectStorm: (id) => set({ selectedStormId: id, selectedPropertyId: null }),
   selectProperty: (id) => set({ selectedPropertyId: id }),
+  focusMap: (focus) => set({ mapFocus: focus }),
   patchLine: (estimateId, itemId, patch) =>
     set((s) => {
       const est = s.estimates[estimateId];

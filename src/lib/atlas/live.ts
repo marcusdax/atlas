@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { fetchRadarFrames, seedFrames, type RadarFrame, type RadarProduct } from "./radar";
 import {
+  EMPTY_OUTLOOK,
   fetchNwsAlerts,
+  fetchSpcOutlook,
   fetchStationWx,
   fetchStormReports,
   type NwsAlert,
+  type OutlookCollection,
   type StationWx,
   type StormReport,
 } from "./weather";
@@ -47,36 +50,68 @@ function usePolled<T>(loader: (signal: AbortSignal) => Promise<T>, ms: number, i
   return { data, error, status };
 }
 
-export function useRadarLoop(product: RadarProduct) {
-  const [frames, setFrames] = useState<RadarFrame[]>(() => seedFrames(product));
-  const [index, setIndex] = useState(() => Math.max(0, seedFrames(product).length - 1));
+export function useRadarLoop(product: RadarProduct, siteId = "KFWS", loopMs = 700) {
+  const [frames, setFrames] = useState<RadarFrame[]>(() => seedFrames(product, siteId));
+  const [index, setIndex] = useState(() => Math.max(0, seedFrames(product, siteId).length - 1));
   const [playing, setPlaying] = useState(true);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     const ctrl = new AbortController();
     setStatus("loading");
-    void fetchRadarFrames(product, ctrl.signal)
+    void fetchRadarFrames(product, siteId, ctrl.signal)
       .then((next) => {
         setFrames(next);
         setIndex(Math.max(0, next.length - 1));
         setStatus(next.length ? "ready" : "error");
       })
-      .catch(() => setStatus("error"));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setStatus("error");
+      });
     return () => ctrl.abort();
-  }, [product]);
+  }, [product, siteId]);
 
   useEffect(() => {
     if (!playing || frames.length < 2) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => {
       setIndex((i) => (i + 1) % frames.length);
-    }, 700);
+    }, loopMs);
     return () => window.clearInterval(id);
-  }, [playing, frames.length]);
+  }, [playing, frames.length, loopMs]);
 
   const frame = frames[index] ?? null;
   return { frames, index, setIndex, playing, setPlaying, frame, status };
+}
+
+export function useOutlooks(enabled: boolean) {
+  const [cat, setCat] = useState<OutlookCollection>(EMPTY_OUTLOOK);
+  const [hail, setHail] = useState<OutlookCollection>(EMPTY_OUTLOOK);
+  const [status, setStatus] = useState<"idle" | "ready" | "error">("idle");
+
+  useEffect(() => {
+    if (!enabled) return;
+    const ctrl = new AbortController();
+    let alive = true;
+    void Promise.all([fetchSpcOutlook("cat", ctrl.signal), fetchSpcOutlook("hail", ctrl.signal)])
+      .then(([nextCat, nextHail]) => {
+        if (!alive) return;
+        setCat(nextCat);
+        setHail(nextHail);
+        setStatus("ready");
+      })
+      .catch((err) => {
+        if (!alive || (err instanceof DOMException && err.name === "AbortError")) return;
+        setStatus("error");
+      });
+    return () => {
+      alive = false;
+      ctrl.abort();
+    };
+  }, [enabled]);
+
+  return { cat, hail, status };
 }
 
 export function useStationWx() {

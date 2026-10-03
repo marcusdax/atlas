@@ -7,63 +7,90 @@ import { Pause, Play } from "lucide-react";
 import { PROPERTIES, STORMS } from "@/lib/atlas/data";
 import {
   propertiesToGeoJSON,
+  siteRingsToGeoJSON,
   sitesToGeoJSON,
   stormCoresToGeoJSON,
   stormsToGeoJSON,
 } from "@/lib/atlas/geo";
-import { useNwsAlerts, useRadarLoop, useStormReports } from "@/lib/atlas/live";
-import { atlasMapStyle } from "@/lib/atlas/map-style";
-import { formatFrameClock, type RadarProduct } from "@/lib/atlas/radar";
-import { alertsToGeoJSON, reportsToGeoJSON } from "@/lib/atlas/weather";
+import { useNwsAlerts, useOutlooks, useRadarLoop, useStormReports } from "@/lib/atlas/live";
+import { atlasMapStyle, type AtlasBasemap } from "@/lib/atlas/map-style";
+import {
+  formatFrameClock,
+  frameAge,
+  type RadarLegend,
+  type RadarProduct,
+} from "@/lib/atlas/radar";
+import { alertsToGeoJSON, reportsToGeoJSON, type OutlookCollection } from "@/lib/atlas/weather";
 import type { PropertyRecord, StormEvent } from "@/lib/atlas/types";
 import { cn } from "@/lib/utils";
 
 const EMPTY = { type: "FeatureCollection" as const, features: [] as never[] };
-
-type Basemap = "ops" | "sat";
 
 export function OpsMap({
   storms = STORMS,
   properties = PROPERTIES,
   focusId,
   onSelect,
+  onInspect,
   className,
   basemap = "ops",
   product = "n0q",
+  siteId = "KFWS",
   showRadar = true,
   showAlerts = true,
   showReports = true,
+  showOutlook = false,
+  showHail = false,
+  showRings = false,
   showChrome = true,
   followFocus = false,
   center,
   zoom,
   interactive = true,
+  opacity = 0.72,
+  loopMs = 700,
+  inspect = null,
 }: {
   storms?: StormEvent[];
   properties?: PropertyRecord[];
   focusId?: string | null;
   onSelect?: (id: string) => void;
+  onInspect?: (point: { lng: number; lat: number }) => void;
   className?: string;
-  basemap?: Basemap;
+  basemap?: AtlasBasemap;
   product?: RadarProduct;
+  siteId?: string;
   showRadar?: boolean;
   showAlerts?: boolean;
   showReports?: boolean;
+  showOutlook?: boolean;
+  showHail?: boolean;
+  showRings?: boolean;
   showChrome?: boolean;
   followFocus?: boolean;
   center?: [number, number];
   zoom?: number;
   interactive?: boolean;
+  opacity?: number;
+  loopMs?: number;
+  inspect?: { lng: number; lat: number } | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onInspectRef = useRef(onInspect);
   onSelectRef.current = onSelect;
+  onInspectRef.current = onInspect;
   const [ready, setReady] = useState(false);
 
-  const { frames, index, setIndex, playing, setPlaying, frame, status } = useRadarLoop(product);
+  const { frames, index, setIndex, playing, setPlaying, frame, status } = useRadarLoop(
+    product,
+    siteId,
+    loopMs,
+  );
   const alerts = useNwsAlerts();
   const reports = useStormReports();
+  const outlooks = useOutlooks(showOutlook || showHail);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -75,7 +102,7 @@ export function OpsMap({
     void import("maplibre-gl").then((mod) => {
       if (cancelled || !rootRef.current) return;
       const gl = (mod as { default?: typeof import("maplibre-gl") }).default ?? mod;
-      gl.setWorkerCount?.(0);
+      gl.setWorkerUrl("/vendor/maplibre/maplibre-gl-worker.mjs");
       map = new gl.Map({
         container: rootRef.current,
         style: atlasMapStyle(),
@@ -92,6 +119,30 @@ export function OpsMap({
       map.addControl(new gl.AttributionControl({ compact: true }), "bottom-left");
       map.on("load", () => {
         if (!map) return;
+        map.addSource("spc-cat", { type: "geojson", data: EMPTY });
+        map.addLayer({
+          id: "spc-cat",
+          type: "fill",
+          source: "spc-cat",
+          layout: { visibility: "none" },
+          paint: {
+            "fill-color": ["coalesce", ["get", "fill"], "#c1e9c1"],
+            "fill-opacity": 0.22,
+            "fill-outline-color": ["coalesce", ["get", "stroke"], "rgba(236,234,228,0.35)"],
+          },
+        });
+        map.addSource("spc-hail", { type: "geojson", data: EMPTY });
+        map.addLayer({
+          id: "spc-hail",
+          type: "fill",
+          source: "spc-hail",
+          layout: { visibility: "none" },
+          paint: {
+            "fill-color": ["coalesce", ["get", "fill"], "#c4b59a"],
+            "fill-opacity": 0.28,
+            "fill-outline-color": ["coalesce", ["get", "stroke"], "rgba(236,234,228,0.4)"],
+          },
+        });
         map.addSource("radar", {
           type: "raster",
           tiles: [
@@ -99,13 +150,25 @@ export function OpsMap({
           ],
           tileSize: 256,
           maxzoom: 12,
-          attribution: "IEM · NWS NEXRAD · RainViewer",
+          attribution: "IEM · NWS · RainViewer · GOES",
         });
         map.addLayer({
           id: "radar",
           type: "raster",
           source: "radar",
-          paint: { "raster-opacity": 0.7, "raster-fade-duration": 0 },
+          paint: { "raster-opacity": 0.72, "raster-fade-duration": 0 },
+        });
+        map.addSource("rings", { type: "geojson", data: siteRingsToGeoJSON() });
+        map.addLayer({
+          id: "rings",
+          type: "line",
+          source: "rings",
+          layout: { visibility: "none" },
+          paint: {
+            "line-color": "rgba(236,234,228,0.45)",
+            "line-width": 1,
+            "line-dasharray": [2, 2],
+          },
         });
         map.addSource("alerts", { type: "geojson", data: EMPTY });
         map.addLayer({
@@ -196,9 +259,26 @@ export function OpsMap({
             "circle-stroke-color": "#d8d4cc",
           },
         });
+        map.addSource("inspect", { type: "geojson", data: EMPTY });
+        map.addLayer({
+          id: "inspect",
+          type: "circle",
+          source: "inspect",
+          paint: {
+            "circle-radius": 7,
+            "circle-color": "transparent",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#eceae4",
+          },
+        });
         map.on("click", "properties", (e) => {
           const id = e.features?.[0]?.properties?.id;
           if (typeof id === "string") onSelectRef.current?.(id);
+        });
+        map.on("click", (e) => {
+          const hits = map?.queryRenderedFeatures(e.point, { layers: ["properties"] }) ?? [];
+          if (hits.length) return;
+          onInspectRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
         });
         map.on("mouseenter", "properties", () => {
           map!.getCanvas().style.cursor = "pointer";
@@ -229,17 +309,71 @@ export function OpsMap({
     if (!ready || !map) return;
     setVis(map, "ops", basemap === "ops");
     setVis(map, "sat", basemap === "sat");
+    setVis(map, "streets", basemap === "streets");
     setVis(map, "labels", basemap === "sat");
   }, [basemap, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map || !frame) return;
-    const src = map.getSource("radar") as RasterTileSource | undefined;
-    src?.setTiles(frame.tiles);
-    map.setPaintProperty("radar", "raster-opacity", showRadar ? 0.7 : 0);
+    const spec = map.getStyle()?.sources?.radar as { maxzoom?: number } | undefined;
+    if (!map.getSource("radar") || spec?.maxzoom !== frame.maxzoom) {
+      if (map.getLayer("radar")) map.removeLayer("radar");
+      if (map.getSource("radar")) map.removeSource("radar");
+      map.addSource("radar", {
+        type: "raster",
+        tiles: frame.tiles,
+        tileSize: frame.tileSize,
+        maxzoom: frame.maxzoom,
+        attribution: frame.credit,
+      });
+      const before = map.getLayer("rings") ? "rings" : undefined;
+      map.addLayer(
+        {
+          id: "radar",
+          type: "raster",
+          source: "radar",
+          paint: {
+            "raster-opacity": showRadar ? opacity : 0,
+            "raster-fade-duration": 0,
+          },
+        },
+        before,
+      );
+    } else {
+      (map.getSource("radar") as RasterTileSource | undefined)?.setTiles(frame.tiles);
+      map.setPaintProperty("radar", "raster-opacity", showRadar ? opacity : 0);
+    }
     setVis(map, "radar", showRadar);
-  }, [frame, showRadar, ready]);
+  }, [frame, showRadar, ready, opacity]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    setOutlook(map, "spc-cat", outlooks.cat, showOutlook);
+    setOutlook(map, "spc-hail", outlooks.hail, showHail);
+    setVis(map, "rings", showRings);
+  }, [outlooks.cat, outlooks.hail, showOutlook, showHail, showRings, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const src = map.getSource("inspect") as GeoJSONSource | undefined;
+    src?.setData(
+      inspect
+        ? {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: [inspect.lng, inspect.lat] },
+              },
+            ],
+          }
+        : EMPTY,
+    );
+  }, [inspect, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -295,11 +429,12 @@ export function OpsMap({
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 p-3">
           <div className="pointer-events-auto rounded-md bg-background/80 px-3 py-2 shadow-[var(--shadow-border)] backdrop-blur-sm">
             <p className="font-mono text-xs uppercase tracking-wider text-faint">
-              {product === "composite" ? "RainViewer" : "IEM NEXRAD"} ·{" "}
-              {status === "ready" ? "live" : status}
+              {frame?.credit ?? "Radar"} · {status === "ready" ? frameAge(frame?.time ?? 0) : status}
             </p>
             <p className="font-mono text-sm tabular-nums">
-              {frame ? formatFrameClock(frame.time) : "Waiting on tiles"}
+              {frame
+                ? `${frame.forecast ? "Forecast " : ""}${formatFrameClock(frame.time)}`
+                : "Waiting on tiles"}
             </p>
           </div>
           <div className="pointer-events-auto flex items-center gap-2 rounded-md bg-background/80 px-2 py-1 shadow-[var(--shadow-border)] backdrop-blur-sm">
@@ -326,17 +461,9 @@ export function OpsMap({
           </div>
         </div>
       )}
-      {showChrome && (
-        <div className="pointer-events-none absolute bottom-8 left-3 z-10">
-          <div className="rounded-md bg-background/80 px-3 py-2 shadow-[var(--shadow-border)] backdrop-blur-sm">
-            <p className="font-mono text-xs uppercase tracking-wider text-faint">Reflectivity</p>
-            <div className="radar-scale mt-1 h-1.5 w-40 rounded-full" />
-            <div className="mt-1 flex justify-between font-mono text-xs text-faint">
-              <span>20</span>
-              <span>hail</span>
-              <span>70 dBZ</span>
-            </div>
-          </div>
+      {showChrome && frame && (
+        <div className="pointer-events-none absolute bottom-8 left-3 z-10 max-w-56">
+          <Legend legend={frame.legend} note={frame.note} />
         </div>
       )}
     </div>
@@ -346,4 +473,56 @@ export function OpsMap({
 function setVis(map: MapLibreMap, layer: string, on: boolean) {
   if (!map.getLayer(layer)) return;
   map.setLayoutProperty(layer, "visibility", on ? "visible" : "none");
+}
+
+function setOutlook(map: MapLibreMap, layer: string, data: OutlookCollection, on: boolean) {
+  const source = layer === "spc-cat" ? "spc-cat" : "spc-hail";
+  (map.getSource(source) as GeoJSONSource | undefined)?.setData(data);
+  setVis(map, layer, on && data.features.length > 0);
+}
+
+function Legend({ legend, note }: { legend: RadarLegend; note: string }) {
+  const scale =
+    legend === "vel" ? "radar-scale-vel" : legend === "precip" ? "radar-scale-precip" : "radar-scale";
+  const title =
+    legend === "vel"
+      ? "Velocity"
+      : legend === "et"
+        ? "Echo tops"
+        : legend === "vil"
+          ? "VIL"
+          : legend === "hca"
+            ? "Hydrometeor class"
+            : legend === "precip"
+              ? "1-hour rain"
+              : legend === "sat"
+                ? "GOES-East"
+                : "Reflectivity";
+  const ends =
+    legend === "vel"
+      ? ["−64", "0", "+64 kt"]
+      : legend === "et"
+        ? ["10", "30", "70 kft"]
+        : legend === "vil"
+          ? ["5", "30", "70"]
+          : legend === "precip"
+            ? ["0.01", "0.5", "2 in"]
+            : legend === "hca"
+              ? ["rain", "graupel", "hail"]
+              : legend === "sat"
+                ? ["cold", "storm top"]
+                : ["20", "hail", "70 dBZ"];
+
+  return (
+    <div className="rounded-md bg-background/80 px-3 py-2 shadow-[var(--shadow-border)] backdrop-blur-sm">
+      <p className="font-mono text-xs uppercase tracking-wider text-faint">{title}</p>
+      {legend !== "sat" && <div className={cn(scale, "mt-1 h-1.5 w-40 rounded-full")} />}
+      <div className="mt-1 flex justify-between gap-3 font-mono text-xs text-faint">
+        {ends.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+    </div>
+  );
 }

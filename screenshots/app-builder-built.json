@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Atlas",
+      "hasCanvas": false,
+      "bodyTextLen": 1293,
+      "bodyTextHash": "262ee01c5d5f9a09c8fed3ca5129e11ea4513cfc8efed96114eb2f63b45e2ab5",
+      "bodyTextPrefix": "A Atlas STORM OS 01 Command Operations 02 Radar Live mosaic 03 R",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Atlas",
+      "hasCanvas": false,
+      "bodyTextLen": 998,
+      "bodyTextHash": "a69c29ae7d6471434baf32f4784c37a9e8d4614a722f1904525e0fadfb3c95a7",
+      "bodyTextPrefix": "M. Hale Lead estimator COMMAND Preston Hollow is still open. 2.5",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

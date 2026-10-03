@@ -1,5 +1,7 @@
 import type { StyleSpecification } from "maplibre-gl";
 
+export type AtlasBasemap = "ops" | "sat" | "streets";
+
 const CARTO = [
   "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
   "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
@@ -9,6 +11,12 @@ const CARTO = [
 const CARTO_LABELS = [
   "https://a.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
   "https://b.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
+];
+
+const STREETS = [
+  "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
 ];
 
 const SAT =
@@ -34,6 +42,13 @@ export function atlasMapStyle(): StyleSpecification {
         maxzoom: 19,
         attribution: "Esri · Maxar · Earthstar",
       },
+      streets: {
+        type: "raster",
+        tiles: STREETS,
+        tileSize: 256,
+        maxzoom: 20,
+        attribution: "© OpenStreetMap © CARTO",
+      },
       labels: {
         type: "raster",
         tiles: CARTO_LABELS,
@@ -48,6 +63,12 @@ export function atlasMapStyle(): StyleSpecification {
         id: "sat",
         type: "raster",
         source: "sat",
+        layout: { visibility: "none" },
+      },
+      {
+        id: "streets",
+        type: "raster",
+        source: "streets",
         layout: { visibility: "none" },
       },
       {

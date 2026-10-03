@@ -15,6 +15,8 @@ import {
   Search,
 } from "lucide-react";
 import { PROPERTIES, TENANT } from "@/lib/atlas/data";
+import { searchPlaces } from "@/lib/atlas/weather";
+import { useAtlas } from "@/lib/atlas/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -90,7 +92,9 @@ function Brand() {
 export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [mapHint, setMapHint] = useState<string | null>(null);
   const navigate = useNavigate();
+  const focusMap = useAtlas((s) => s.focusMap);
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (needle.length < 2) return [];
@@ -132,12 +136,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setMapHint(null);
+              }}
               placeholder="Search address, owner, storm"
               className="pl-9"
               aria-label="Search properties"
             />
-            {hits.length > 0 && (
+            {(hits.length > 0 || query.trim().length >= 3) && (
               <ul className="absolute top-11 z-30 w-full overflow-hidden rounded-md bg-popover p-1 shadow-[var(--shadow-border)]">
                 {hits.map((p) => (
                   <li key={p.id}>
@@ -157,6 +164,31 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </button>
                   </li>
                 ))}
+                {query.trim().length >= 3 && (
+                  <li>
+                    <button
+                      type="button"
+                      className="flex min-h-11 w-full items-center rounded-sm px-3 text-left text-sm hover:bg-accent"
+                      onClick={() => {
+                        const q = query.trim();
+                        void searchPlaces(q).then((places) => {
+                          const hit = places[0];
+                          if (!hit) {
+                            setMapHint("No public geocode for that.");
+                            return;
+                          }
+                          focusMap({ lng: hit.lng, lat: hit.lat, label: hit.label, zoom: 12 });
+                          setQuery("");
+                          setMapHint(null);
+                          void navigate({ to: "/radar" });
+                        });
+                      }}
+                    >
+                      Fly radar to “{query.trim()}”
+                    </button>
+                  </li>
+                )}
+                {mapHint && <li className="px-3 py-2 text-xs text-muted-foreground">{mapHint}</li>}
               </ul>
             )}
           </div>

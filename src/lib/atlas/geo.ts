@@ -1,5 +1,6 @@
 import type { PropertyRecord, StormEvent } from "./types";
 import { dpsTone } from "./format";
+import { RADAR_SITES } from "./radar";
 
 export const DFW = {
   lng: -96.897,
@@ -7,9 +8,7 @@ export const DFW = {
   zoom: 9,
 };
 
-export const NEXRAD_SITES = [
-  { id: "KFWS", name: "Fort Worth", lng: -97.303, lat: 32.573 },
-] as const;
+export const NEXRAD_SITES = RADAR_SITES;
 
 export function circleRing(
   lng: number,
@@ -84,11 +83,26 @@ export function propertiesToGeoJSON(properties: PropertyRecord[], focusId?: stri
 export function sitesToGeoJSON() {
   return {
     type: "FeatureCollection" as const,
-    features: NEXRAD_SITES.map((s) => ({
+    features: RADAR_SITES.map((s) => ({
       type: "Feature" as const,
       id: s.id,
-      properties: { id: s.id, name: s.name },
+      properties: { id: s.id, name: s.name, kind: s.kind },
       geometry: { type: "Point" as const, coordinates: [s.lng, s.lat] as [number, number] },
+    })),
+  };
+}
+
+export function siteRingsToGeoJSON() {
+  return {
+    type: "FeatureCollection" as const,
+    features: RADAR_SITES.map((s) => ({
+      type: "Feature" as const,
+      id: `${s.id}-ring`,
+      properties: { id: s.id, name: s.name, kind: s.kind },
+      geometry: {
+        type: "LineString" as const,
+        coordinates: circleRing(s.lng, s.lat, s.rangeKm),
+      },
     })),
   };
 }

@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/radar",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Atlas",
+      "hasCanvas": false,
+      "bodyTextLen": 1392,
+      "bodyTextHash": "98bdad735ab0e18a2b4722df6d13e49d7de9a4f89f7c029a8033973e474e23bb",
+      "bodyTextPrefix": "A Atlas STORM OS 01 Command Operations 02 Radar Live mosaic 03 R",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/qa-radar.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Atlas",
+      "hasCanvas": false,
+      "bodyTextLen": 1223,
+      "bodyTextHash": "a20c1bdeb7d9813f5df1d38ad380060cab41864d3e3a97eb8720a210a90919cf",
+      "bodyTextPrefix": "M. Hale Lead estimator IEM · NWS NEXRAD · JUST NOW 8:01 PM UTC R",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/qa-radar-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/qa-radar.json"
+}

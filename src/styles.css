@@ -109,6 +109,21 @@
     );
   }
 
+  .radar-scale-vel {
+    background: linear-gradient(
+      90deg,
+      #7f00ff 0%,
+      #0000ff 28%,
+      #bdbdbd 50%,
+      #00aa00 74%,
+      #ffff00 100%
+    );
+  }
+
+  .radar-scale-precip {
+    background: linear-gradient(90deg, #d8d4cc 0%, #8aa58a 42%, #c4b59a 72%, #c17a6e 100%);
+  }
+
   .maplibregl-ctrl-attrib {
     background: color-mix(in srgb, var(--color-background) 82%, transparent) !important;
     color: var(--color-faint) !important;

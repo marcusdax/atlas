@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { OpsMap } from "@/components/atlas/ops-map";
@@ -10,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PROPERTIES, STORMS } from "@/lib/atlas/data";
 import { dpsTone, stormWhen, usd } from "@/lib/atlas/format";
+import type { AtlasBasemap } from "@/lib/atlas/map-style";
 import { useAtlas } from "@/lib/atlas/store";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/")({
   component: CommandCenter,
@@ -34,6 +37,8 @@ function CommandCenter() {
   const pipeline = usd(PROPERTIES.reduce((s, p) => s + p.estRepair, 0));
   const high = PROPERTIES.filter((p) => p.dps >= 80).length;
   const latest = STORMS[0];
+  const [showRadar, setShowRadar] = useState(true);
+  const [basemap, setBasemap] = useState<AtlasBasemap>("ops");
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -72,18 +77,38 @@ function CommandCenter() {
 
       <section className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Strike field</CardTitle>
-              <p className="text-sm text-muted-foreground">Live NEXRAD · hail cells · scored parcels</p>
+              <p className="text-sm text-muted-foreground">
+                {showRadar ? "Live NEXRAD" : "Map only"} · hail cells · scored parcels
+              </p>
             </div>
-            <Badge variant="outline">Live</Badge>
+            <div className="flex flex-wrap gap-1">
+              <MapToggle pressed={showRadar} onPressed={() => setShowRadar((v) => !v)}>
+                Radar
+              </MapToggle>
+              {(
+                [
+                  ["ops", "Ops"],
+                  ["sat", "Satellite"],
+                  ["streets", "Streets"],
+                ] as const
+              ).map(([id, label]) => (
+                <MapToggle key={id} pressed={basemap === id} onPressed={() => setBasemap(id)}>
+                  {label}
+                </MapToggle>
+              ))}
+            </div>
           </CardHeader>
           <CardContent>
             <OpsMap
               className="h-96"
               focusId={selected}
               onSelect={selectProperty}
+              basemap={basemap}
+              showRadar={showRadar}
+              product="n0q"
             />
           </CardContent>
         </Card>
@@ -170,5 +195,29 @@ function CommandCenter() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function MapToggle({
+  pressed,
+  onPressed,
+  children,
+}: {
+  pressed: boolean;
+  onPressed: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onPressed}
+      className={cn(
+        "min-h-11 rounded-md px-3 text-sm",
+        pressed ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }
